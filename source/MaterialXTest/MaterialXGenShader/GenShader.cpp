@@ -196,7 +196,7 @@ TEST_CASE("GenShader: Shader Translation", "[translate]")
             std::cout << "Shader translation of " << (testPath / mtlxFile).asString() << " failed" << std::endl;
             std::cout << "Validation errors: " << validationErrors << std::endl;
         }
-        CHECK(valid);
+        REQUIRE(valid);
     }
 }
 
@@ -236,12 +236,6 @@ TEST_CASE("GenShader: Transparency Regression Check", "[genshader]")
                 if (!node)
                 {
                     continue;
-                }
-                if (node->getCategory() == mx::SURFACE_MATERIAL_NODE_STRING)
-                {
-                    std::vector<mx::NodePtr> shaderNodes = mx::getShaderNodes(node);
-                    if (!shaderNodes.empty())
-                        node = shaderNodes[0];
                 }
                 if (testValue != mx::isTransparentSurface(node))
                 {
