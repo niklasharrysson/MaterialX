@@ -20,10 +20,14 @@ void MaterialNodeMdl::emitFunctionCall(const ShaderNode& _node, GenContext& cont
     DEFINE_SHADER_STAGE(stage, Stage::PIXEL)
     {
         ShaderNode& node = const_cast<ShaderNode&>(_node);
-        ShaderInput* surfaceshaderInput = node.getInput(ShaderNode::SURFACESHADER);
 
-        if (!surfaceshaderInput->getConnection())
+        const ShaderInput* surfaceshaderInput = node.getInput(ShaderNode::SURFACESHADER);
+        const ShaderNode* surfaceshaderNode = (surfaceshaderInput && surfaceshaderInput->getConnection()) ? surfaceshaderInput->getConnection()->getNode() : nullptr;
+
+        // Make sure it's a sibling node and not the graph interface.
+        if (!(surfaceshaderNode && (surfaceshaderNode->getParent() == node.getParent())))
         {
+            // This is a material node without a sibling surfaceshader connected.
             // Just declare the output variable with default value.
             emitOutputVariables(node, context, stage);
             return;
@@ -32,7 +36,6 @@ void MaterialNodeMdl::emitFunctionCall(const ShaderNode& _node, GenContext& cont
         const ShaderGenerator& shadergen = context.getShaderGenerator();
 
         // Emit the function call for upstream surface shader.
-        const ShaderNode* surfaceshaderNode = surfaceshaderInput->getConnection()->getNode();
         shadergen.emitFunctionCall(*surfaceshaderNode, context, stage);
 
         shadergen.emitLineBegin(stage);

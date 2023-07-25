@@ -6,6 +6,7 @@
 #include <MaterialXGenShader/Nodes/MaterialNode.h>
 #include <MaterialXGenShader/ShaderGenerator.h>
 #include <MaterialXGenShader/Shader.h>
+#include <MaterialXGenShader/ShaderNode.h>
 #include <MaterialXGenShader/GenContext.h>
 
 MATERIALX_NAMESPACE_BEGIN
@@ -17,12 +18,15 @@ ShaderNodeImplPtr MaterialNode::create()
 
 void MaterialNode::addClassification(ShaderNode& node) const
 {
+    // Classify as shader by default since material nodes are just terminals for shaders.
+    node.addClassification(ShaderNode::Classification::SHADER);
+
+    // Find connected surface shader node.
     const ShaderInput* surfaceshaderInput = node.getInput(ShaderNode::SURFACESHADER);
-    if (surfaceshaderInput && surfaceshaderInput->getConnection())
+    const ShaderNode* surfaceshaderNode = (surfaceshaderInput && surfaceshaderInput->getConnection()) ? surfaceshaderInput->getConnection()->getNode() : nullptr;
+    if (surfaceshaderNode && (surfaceshaderNode->getParent() == node.getParent()))
     {
-        // This is a material node with a surfaceshader connected.
-        // Add the classification from this shader.
-        const ShaderNode* surfaceshaderNode = surfaceshaderInput->getConnection()->getNode();
+        // A connected sibling surfaceshader node was found so add its classification.
         node.addClassification(surfaceshaderNode->getClassification());
     }
 }
@@ -32,10 +36,13 @@ void MaterialNode::emitFunctionCall(const ShaderNode& _node, GenContext& context
     DEFINE_SHADER_STAGE(stage, Stage::PIXEL)
     {
         ShaderNode& node = const_cast<ShaderNode&>(_node);
-        ShaderInput* surfaceshaderInput = node.getInput(ShaderNode::SURFACESHADER);
+        const ShaderInput* surfaceshaderInput = node.getInput(ShaderNode::SURFACESHADER);
+        const ShaderNode* surfaceshaderNode = (surfaceshaderInput && surfaceshaderInput->getConnection()) ? surfaceshaderInput->getConnection()->getNode() : nullptr;
 
-        if (!surfaceshaderInput->getConnection())
+        // Make sure it's a sibling node and not the graph interface.
+        if (!(surfaceshaderNode && (surfaceshaderNode->getParent() == node.getParent())))
         {
+            // This is a material node without a sibling surfaceshader connected.
             // Just declare the output variable with default value.
             emitOutputVariables(node, context, stage);
             return;
@@ -45,7 +52,6 @@ void MaterialNode::emitFunctionCall(const ShaderNode& _node, GenContext& context
         const Syntax& syntax = shadergen.getSyntax();
 
         // Emit the function call for upstream surface shader.
-        const ShaderNode* surfaceshaderNode = surfaceshaderInput->getConnection()->getNode();
         shadergen.emitFunctionCall(*surfaceshaderNode, context, stage);
 
         // Assing this result to the material output variable.
