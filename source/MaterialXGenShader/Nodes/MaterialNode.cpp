@@ -6,7 +6,6 @@
 #include <MaterialXGenShader/Nodes/MaterialNode.h>
 #include <MaterialXGenShader/ShaderGenerator.h>
 #include <MaterialXGenShader/Shader.h>
-#include <MaterialXGenShader/ShaderNode.h>
 #include <MaterialXGenShader/GenContext.h>
 
 MATERIALX_NAMESPACE_BEGIN
@@ -18,15 +17,17 @@ ShaderNodeImplPtr MaterialNode::create()
 
 void MaterialNode::addClassification(ShaderNode& node) const
 {
-    // Classify as shader by default since material nodes are just terminals for shaders.
+    // Classify as a shader by default since a material is just a shader terminal.
     node.addClassification(ShaderNode::Classification::SHADER);
 
-    // Find connected surface shader node.
+    // Find connected surfaceshader node.
     const ShaderInput* surfaceshaderInput = node.getInput(ShaderNode::SURFACESHADER);
     const ShaderNode* surfaceshaderNode = (surfaceshaderInput && surfaceshaderInput->getConnection()) ? surfaceshaderInput->getConnection()->getNode() : nullptr;
+
+    // Make sure it's a sibling node and not the graph interface.
     if (surfaceshaderNode && (surfaceshaderNode->getParent() == node.getParent()))
     {
-        // A connected sibling surfaceshader node was found so add its classification.
+        // A connected surfaceshader was found so add its classification.
         node.addClassification(surfaceshaderNode->getClassification());
     }
 }
