@@ -22,6 +22,9 @@ namespace mx = MaterialX;
 
 TEST_CASE("GenReference: OSL Reference", "[genreference]")
 {
+    int x = 42;
+    int y = x;
+
     mx::FileSearchPath searchPath = mx::getDefaultDataSearchPath();
     mx::DocumentPtr stdlib = mx::createDocument();
     loadLibraries({ "libraries/targets", "libraries/stdlib" }, searchPath, stdlib);
