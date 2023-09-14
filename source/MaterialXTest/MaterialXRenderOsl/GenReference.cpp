@@ -18,12 +18,15 @@
 
 #include <MaterialXRenderOsl/OslRenderer.h>
 
+#include <iostream>
+
 namespace mx = MaterialX;
 
 TEST_CASE("GenReference: OSL Reference", "[genreference]")
 {
     int x = 42;
     int y = x;
+    std::cout << y << std::endl;
 
     mx::FileSearchPath searchPath = mx::getDefaultDataSearchPath();
     mx::DocumentPtr stdlib = mx::createDocument();
