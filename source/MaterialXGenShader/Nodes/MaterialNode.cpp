@@ -18,12 +18,13 @@ ShaderNodeImplPtr MaterialNode::create()
 void MaterialNode::addClassification(ShaderNode& node) const
 {
     const ShaderInput* surfaceshaderInput = node.getInput(ShaderNode::SURFACESHADER);
-    if (surfaceshaderInput && surfaceshaderInput->getConnection())
+    const ShaderPort* connectedPort = surfaceshaderInput ? surfaceshaderInput->getConnection() : nullptr;
+
+    if (connectedPort && connectedPort->getNode()->hasClassification(ShaderNode::Classification::SURFACE))
     {
         // This is a material node with a surfaceshader connected.
         // Add the classification from this shader.
-        const ShaderNode* surfaceshaderNode = surfaceshaderInput->getConnection()->getNode();
-        node.addClassification(surfaceshaderNode->getClassification());
+        node.addClassification(connectedPort->getNode()->getClassification());
     }
 }
 
@@ -34,7 +35,14 @@ void MaterialNode::emitFunctionCall(const ShaderNode& _node, GenContext& context
         ShaderNode& node = const_cast<ShaderNode&>(_node);
         ShaderInput* surfaceshaderInput = node.getInput(ShaderNode::SURFACESHADER);
 
-        if (!surfaceshaderInput->getConnection())
+        // Make sure we have a connection to a surfaceshader node upstream
+        // NOTE: We also check if the connection is to the graph interface, 
+        // as we don't support routing the surface shader through a graph interface.
+        // It must be connected directly to the terminal material node.
+        const ShaderPort* connectedPort = surfaceshaderInput ? surfaceshaderInput->getConnection() : nullptr;
+        if (!connectedPort || 
+            !connectedPort->getNode()->hasClassification(ShaderNode::Classification::SURFACE) ||
+            (connectedPort->getNode() == node.getParent()))
         {
             // Just declare the output variable with default value.
             emitOutputVariables(node, context, stage);
@@ -45,7 +53,7 @@ void MaterialNode::emitFunctionCall(const ShaderNode& _node, GenContext& context
         const Syntax& syntax = shadergen.getSyntax();
 
         // Emit the function call for upstream surface shader.
-        const ShaderNode* surfaceshaderNode = surfaceshaderInput->getConnection()->getNode();
+        const ShaderNode* surfaceshaderNode = connectedPort->getNode();
         shadergen.emitFunctionCall(*surfaceshaderNode, context, stage);
 
         // Assing this result to the material output variable.

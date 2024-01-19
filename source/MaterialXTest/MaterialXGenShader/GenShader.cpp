@@ -416,3 +416,34 @@ TEST_CASE("GenShader: Track Application Variables", "[genshader]")
     }
 #endif
 }
+
+TEST_CASE("GenShader: Empty Material", "[genshader]")
+{
+    const mx::string testDocument =
+        "<?xml version=\"1.0\"?> \
+        <materialx version=\"1.38\"> \
+            <displacement name=\"displacement_float\" type=\"displacementshader\"/> \
+            <surfacematerial name=\"surfacematerial\" type=\"material\"> \
+                <input name=\"displacementshader\" type=\"displacementshader\" nodename=\"displacement_float\"/> \
+            </surfacematerial> \
+        </materialx>";
+
+    const mx::string testElement = "surfacematerial";
+
+    mx::FileSearchPath searchPath = mx::getDefaultDataSearchPath();
+    mx::DocumentPtr libraries = mx::createDocument();
+    mx::loadLibraries({ "libraries" }, searchPath, libraries);
+
+    mx::DocumentPtr testDoc = mx::createDocument();
+    mx::readFromXmlString(testDoc, testDocument);
+    testDoc->importLibrary(libraries);
+
+    mx::ElementPtr element = testDoc->getChild(testElement);
+    CHECK(element);
+
+    mx::GenContext context(mx::GlslShaderGenerator::create());
+    context.registerSourceCodeSearchPath(searchPath);
+    context.setApplicationVariableHandler(variableTracker);
+    mx::ShaderPtr shader = context.getShaderGenerator().generate(testElement, element, context);
+    CHECK(shader);
+}
