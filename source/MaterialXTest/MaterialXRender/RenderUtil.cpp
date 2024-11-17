@@ -167,6 +167,9 @@ bool ShaderRenderTester::validate(const mx::FilePath optionsFilePath)
     // Register shader metadata defined in the libraries.
     _shaderGenerator->registerShaderMetadata(dependLib, context);
 
+    // Register struct typedefs from the library files.
+    _shaderGenerator->loadStructTypeDefs(dependLib);
+
     setupTime.endTimer();
 
     if (!options.enableDirectLighting)
@@ -224,6 +227,10 @@ bool ShaderRenderTester::validate(const mx::FilePath optionsFilePath)
             context.clearNodeImplementations();
 
             doc->setDataLibrary(dependLib);
+
+            // Register struct typedefs from the document.
+            _shaderGenerator->loadStructTypeDefs(doc);
+
             ioTimer.endTimer();
 
             validateTimer.startTimer();
