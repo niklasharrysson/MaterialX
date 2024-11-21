@@ -344,8 +344,7 @@ ShaderNodeImplPtr ShaderGenerator::getImplementation(const NodeDef& nodedef, Gen
     return impl;
 }
 
-/// Load any custom type definitions from the document in to the type cache.
-void ShaderGenerator::registerCustomTypeDefs(const DocumentPtr& doc)
+void ShaderGenerator::registerTypeDefs(const DocumentPtr& doc)
 {
     // TODO:
     // 1. Here we only care about struct types. Is there any need to support other custom types?
@@ -355,9 +354,11 @@ void ShaderGenerator::registerCustomTypeDefs(const DocumentPtr& doc)
     for (const auto& mxTypeDef : doc->getTypeDefs())
     {
         const string& typeName = mxTypeDef->getName();
+        TypeDesc type = TypeDesc::get(typeName);
 
-        // Ignore built-in types
-        if (TypeDesc::getBuiltinType(typeName) != Type::NONE)
+        // Ignore the typedef if the type exists already and is a built-in type.
+        // These are created and registered by default.
+        if (type != Type::NONE && type.isBuiltin())
         {
             continue;
         }
@@ -420,8 +421,7 @@ void ShaderGenerator::registerCustomTypeDefs(const DocumentPtr& doc)
     }
 }
 
-/// Clear any custom type definitions loaded
-void ShaderGenerator::clearCustomTypeDefs()
+void ShaderGenerator::clearTypeDefs()
 {
     TypeDesc::clearCustomTypes();
 }

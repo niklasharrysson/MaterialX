@@ -19,8 +19,8 @@ class TypeDescRegistryImpl
 public:
     void registerBuiltinType(TypeDesc type)
     {
-        // Updating the builtin type registry does not requires thread syncronization
-        // since they are created statically during application launch.
+        // Updating the built-in type registry does not require thread syncronization
+        // since this is done statically during application launch.
         _builtinTypes.push_back(type);
         _builtinTypesByName[type.getName()] = type;
     }
@@ -69,19 +69,6 @@ public:
         return (it != _customTypesByName.end() ? it->second : Type::NONE);
     }
 
-    TypeDesc getBuiltinType(const string& name)
-    {
-        auto it = _builtinTypesByName.find(name);
-        return (it != _builtinTypesByName.end() ? it->second : Type::NONE);
-    }
-
-    TypeDesc getCustomType(const string& name)
-    {
-        std::lock_guard<std::mutex> guard(_mutex);
-        auto it = _customTypesByName.find(name);
-        return (it != _customTypesByName.end() ? it->second : Type::NONE);
-    }
-
     TypeDescVec _builtinTypes;
     TypeDescMap _builtinTypesByName;
 
@@ -96,6 +83,12 @@ public:
 namespace 
 {
     static TypeDescRegistryImpl s_registryImpl;
+}
+
+bool TypeDesc::isBuiltin() const
+{
+    auto it = s_registryImpl._builtinTypesByName.find(getName());
+    return (it != s_registryImpl._builtinTypesByName.end());
 }
 
 void TypeDesc::registerBuiltinType(TypeDesc type)
@@ -113,29 +106,15 @@ void TypeDesc::clearCustomTypes()
     s_registryImpl.clear();
 }
 
+TypeDescVec TypeDesc::getCustomTypes()
+{
+    // NOTE: Return the vector by value to be thread safe
+    return s_registryImpl._customTypes;
+}
+
 TypeDesc TypeDesc::get(const string& name)
 {
     return s_registryImpl.get(name);
-}
-
-TypeDesc TypeDesc::getBuiltinType(const string& name)
-{
-    return s_registryImpl.getBuiltinType(name);
-}
-
-const TypeDescVec& TypeDesc::getBuiltinTypes()
-{
-    return s_registryImpl._builtinTypes;
-}
-
-TypeDesc TypeDesc::getCustomType(const string& name)
-{
-    return s_registryImpl.getCustomType(name);
-}
-
-const TypeDescVec& TypeDesc::getCustomTypes()
-{
-    return s_registryImpl._customTypes;
 }
 
 ValuePtr TypeDesc::createValueFromStrings(const string& value) const

@@ -1760,8 +1760,8 @@ void Viewer::initContext(mx::GenContext& context)
     context.getShaderGenerator().setUnitSystem(unitSystem);
     context.getOptions().targetDistanceUnit = "meter";
 
-    // Initialize the custom typedefs from the stdlib
-    context.getShaderGenerator().registerCustomTypeDefs(_stdLib);
+    // Initialize the typedefs from the stdlib
+    context.getShaderGenerator().registerTypeDefs(_stdLib);
 }
 
 void Viewer::loadStandardLibraries()

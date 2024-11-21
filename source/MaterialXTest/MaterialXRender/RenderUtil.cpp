@@ -168,7 +168,7 @@ bool ShaderRenderTester::validate(const mx::FilePath optionsFilePath)
     _shaderGenerator->registerShaderMetadata(dependLib, context);
 
     // Register custom typedefs from the library files.
-    _shaderGenerator->registerCustomTypeDefs(dependLib);
+    _shaderGenerator->registerTypeDefs(dependLib);
 
     setupTime.endTimer();
 
@@ -229,7 +229,7 @@ bool ShaderRenderTester::validate(const mx::FilePath optionsFilePath)
             doc->setDataLibrary(dependLib);
 
             // Register custom typedefs from the document.
-            _shaderGenerator->registerCustomTypeDefs(doc);
+            _shaderGenerator->registerTypeDefs(doc);
 
             ioTimer.endTimer();
 

@@ -191,11 +191,11 @@ class MX_GENSHADER_API ShaderGenerator
         return _tokenSubstitutions;
     }
 
-    /// Load any cusomt type definitions from the document in to the type cache.
-    virtual void registerCustomTypeDefs(const DocumentPtr& doc);
+    /// Load any custom type definitions from the document in to the type cache.
+    virtual void registerTypeDefs(const DocumentPtr& doc);
 
-    /// Clear any custom type definitions loaded.
-    void clearCustomTypeDefs();
+    /// Clear any type definitions loaded.
+    void clearTypeDefs();
 
     /// Register metadata that should be exported to the generated shaders.
     /// Supported metadata includes standard UI attributes like "uiname", "uifolder",

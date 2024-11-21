@@ -148,6 +148,9 @@ class MX_GENSHADER_API TypeDesc
     /// Return true if the type represents a struct.
     bool isStruct() const { return _basetype == BASETYPE_STRUCT; }
 
+    /// Return true if the type is a built-in type.
+    bool isBuiltin() const;
+
     /// Return a pointer to the struct member description.
     /// Will return nullptr if this is not a struct type.
     const StructMemberDescVecPtr getStructMembers() const { return _data->getStructMembers(); }
@@ -185,23 +188,12 @@ class MX_GENSHADER_API TypeDesc
     /// Remove all custom types.
     static void clearCustomTypes();
 
+    /// Return all registered custom types.
+    static TypeDescVec getCustomTypes();
+
     /// Return a type description by name.
     /// If no type is found Type::NONE is returned.
     static TypeDesc get(const string& name);
-
-    /// Return a built-in type description by name.
-    /// If no type is found Type::NONE is returned.
-    static TypeDesc getBuiltinType(const string& name);
-
-    /// Return all registered built-in types.
-    static const TypeDescVec& getBuiltinTypes();
-
-    /// Return a custom type description by name.
-    /// If no type is found Type::NONE is returned.
-    static TypeDesc getCustomType(const string& name);
-
-    /// Return all registered custom types.
-    static const TypeDescVec& getCustomTypes();
 
     /// Create a Value from a string for a given typeDesc
     ValuePtr createValueFromStrings(const string& value) const;

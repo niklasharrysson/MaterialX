@@ -93,12 +93,13 @@ TEST_CASE("GenShader: TypeDesc Check", "[genshader]")
     REQUIRE(color4Type.getBaseType() == mx::TypeDesc::BASETYPE_FLOAT);
     REQUIRE(color4Type.getSemantic() == mx::TypeDesc::SEMANTIC_COLOR);
     REQUIRE(color4Type.isFloat4());
+    REQUIRE(color4Type.isBuiltin());
 
     // Make sure we can register a new custom type
     mx::TypeDesc::registerCustomType("foo", mx::TypeDesc::BASETYPE_FLOAT, mx::TypeDesc::SEMANTIC_COLOR, 5);
-    const mx::TypeDesc fooType = mx::TypeDesc::getCustomType("foo");
+    const mx::TypeDesc fooType = mx::TypeDesc::get("foo");
     REQUIRE(fooType != mx::Type::NONE);
-    REQUIRE(fooType == mx::TypeDesc::get("foo"));
+    REQUIRE(!fooType.isBuiltin());
 
     // Make sure we can register a new struct type
     {
@@ -108,9 +109,8 @@ TEST_CASE("GenShader: TypeDesc Check", "[genshader]")
         structMembers->emplace_back(mx::StructMemberDesc(mx::Type::FLOAT, "three", "3.0"));
         mx::TypeDesc::registerCustomType("bar", mx::TypeDesc::BASETYPE_STRUCT, mx::TypeDesc::SEMANTIC_NONE, 1, structMembers);
     }
-    const mx::TypeDesc barType = mx::TypeDesc::getCustomType("bar");
+    const mx::TypeDesc barType = mx::TypeDesc::get("bar");
     REQUIRE(barType.isStruct());
-    REQUIRE(barType == mx::TypeDesc::get("bar"));
 
     // Make sure we can register a new struct of a struct type
     {
@@ -119,9 +119,8 @@ TEST_CASE("GenShader: TypeDesc Check", "[genshader]")
         structMembers->emplace_back(mx::StructMemberDesc(barType, "B", "{6.0,7.0,8.0}"));
         mx::TypeDesc::registerCustomType("pair_of_bar", mx::TypeDesc::BASETYPE_STRUCT, mx::TypeDesc::SEMANTIC_NONE, 1, structMembers);
     }
-    const mx::TypeDesc barPairType = mx::TypeDesc::getCustomType("pair_of_bar");
+    const mx::TypeDesc barPairType = mx::TypeDesc::get("pair_of_bar");
     REQUIRE(barPairType.isStruct());
-    REQUIRE(barPairType == mx::TypeDesc::get("pair_of_bar"));
 
     mx::TypeDesc::clearCustomTypes();
     REQUIRE(mx::TypeDesc::get("pair_of_bar") == mx::Type::NONE);
