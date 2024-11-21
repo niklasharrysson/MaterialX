@@ -1099,7 +1099,7 @@ const MslProgram::InputMap& MslProgram::updateUniformsList()
                             const auto& members = variableTypeDesc.getStructMembers();
                             for (size_t i = 0, n = members.size(); i < n; ++i)
                             {
-                                const auto& structMember = members[i];
+                                const auto& structMember = members->at(i);
                                 auto memberVariableName = variableName+"."+structMember._name;
                                 auto memberVariableValue = aggregateValue->getMemberValue(i);
 
