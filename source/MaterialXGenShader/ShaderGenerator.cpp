@@ -344,45 +344,86 @@ ShaderNodeImplPtr ShaderGenerator::getImplementation(const NodeDef& nodedef, Gen
     return impl;
 }
 
-/// Load any struct type definitions from the document in to the type cache.
-void ShaderGenerator::loadStructTypeDefs(const DocumentPtr& doc)
+/// Load any custom type definitions from the document in to the type cache.
+void ShaderGenerator::registerCustomTypeDefs(const DocumentPtr& doc)
 {
+    // TODO:
+    // 1. Here we only care about struct types. Is there any need to support other custom types?
+    // 2. Make this robust for loading the same type multiple times. Both TypeDesc creation and TypeSyntax creation
+    //    below must handle the case that an instance with the same name already exists.
+
     for (const auto& mxTypeDef : doc->getTypeDefs())
     {
-        const auto& typeDefName = mxTypeDef->getName();
-        const auto& members = mxTypeDef->getMembers();
+        const string& typeName = mxTypeDef->getName();
 
-        // If we don't have any member children then we're not going to consider ourselves a struct.
-        if (members.empty())
-            continue;
-
-        StructTypeDesc newStructTypeDesc;
-        for (const auto& member : members)
+        // Ignore built-in types
+        if (TypeDesc::getBuiltinType(typeName) != Type::NONE)
         {
-            auto memberName = member->getName();
-            auto memberTypeName = member->getType();
-            auto memberType = TypeDesc::get(memberTypeName);
-            auto memberDefaultValue = member->getValueString();
-
-            newStructTypeDesc.addMember(memberName, memberType, memberDefaultValue);
+            continue;
         }
 
-        auto structIndex = StructTypeDesc::emplace_back(newStructTypeDesc);
+        // If we don't have any member children then we're not going to consider ourselves a struct.
+        const auto& members = mxTypeDef->getMembers();
+        if (members.empty())
+        {
+            continue;
+        }
 
-        TypeDesc structTypeDesc(typeDefName, TypeDesc::BASETYPE_STRUCT, TypeDesc::SEMANTIC_NONE, 1, structIndex);
+        auto structMembers = std::make_shared<StructMemberDescVec>();
+        for (const auto& member : members)
+        {
+            const auto memberType = TypeDesc::get(member->getType());
+            const auto memberName = member->getName();
+            const auto memberDefaultValue = member->getValueString();
+            structMembers->emplace_back(StructMemberDesc(memberType, memberName, memberDefaultValue));
+        }
 
-        TypeDescRegistry(structTypeDesc, typeDefName);
-
-        StructTypeDesc::get(structIndex).setTypeDesc(TypeDesc::get(typeDefName));
+        TypeDesc::registerCustomType(typeName, TypeDesc::BASETYPE_STRUCT, TypeDesc::SEMANTIC_NONE, 1, structMembers);
     }
 
-    _syntax->registerStructTypeDescSyntax();
+    // Create a type syntax for all struct types loaded above.
+    for (TypeDesc typeDesc : TypeDesc::getCustomTypes())
+    {
+        if (!typeDesc.isStruct())
+        {
+            continue;
+        }
+
+        auto structMembers = typeDesc.getStructMembers();
+        const string& structTypeName = typeDesc.getName();
+        string defaultValue = structTypeName + "( ";
+        string uniformDefaultValue = EMPTY_STRING;
+        string typeAlias = EMPTY_STRING;
+        string typeDefinition = "struct " + structTypeName + " { ";
+
+        for (const auto& structMember : *structMembers)
+        {
+            const string& memberType = structMember.getType().getName();
+            const string& memberName = structMember.getName();
+            const string& memberDefaultValue = structMember.getDefaultValueStr();
+
+            defaultValue += memberDefaultValue + ", ";
+            typeDefinition += memberType + " " + memberName + "; ";
+        }
+
+        typeDefinition += " };";
+        defaultValue += " )";
+
+        StructTypeSyntaxPtr structTypeSyntax = _syntax->createStructSyntax(
+            structTypeName,
+            defaultValue,
+            uniformDefaultValue,
+            typeAlias,
+            typeDefinition);
+
+        _syntax->registerTypeSyntax(typeDesc, structTypeSyntax);
+    }
 }
 
-/// Clear any struct type definitions loaded
-void ShaderGenerator::clearStructTypeDefs()
+/// Clear any custom type definitions loaded
+void ShaderGenerator::clearCustomTypeDefs()
 {
-    StructTypeDesc::clear();
+    TypeDesc::clearCustomTypes();
 }
 
 namespace

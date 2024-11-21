@@ -960,7 +960,8 @@ const GlslProgram::InputMap& GlslProgram::updateUniformsList()
                         [this, variablePath, variableUnit, variableColorspace, variableSemantic, &errors, uniforms, &uniformTypeMismatchFound]
                         (TypeDesc typedesc, const string& variableName, ConstValuePtr variableValue, auto& populateUniformInput_ref) -> void
                     {
-                        if (!typedesc.isStruct())
+                        auto variableStructMembers = typedesc.getStructMembers();
+                        if (!typedesc.isStruct() || !variableStructMembers)
                         {
                             // Handle non-struct types
                             int glType = mapTypeToOpenGLType(typedesc);
@@ -1007,18 +1008,15 @@ const GlslProgram::InputMap& GlslProgram::updateUniformsList()
                         else
                         {
                             // If we're a struct - we need to loop over each member
-                            auto structTypeDesc = StructTypeDesc::get(typedesc.getStructIndex());
                             auto aggregateValue = std::static_pointer_cast<const AggregateValue>(variableValue);
 
-                            const auto& members = structTypeDesc.getMembers();
-                            for (size_t i = 0, n = members.size(); i < n; ++i)
+                            for (size_t i = 0, n = variableStructMembers->size(); i < n; ++i)
                             {
-                                const auto& member = members[i];
-                                auto memberTypeDesc = member._typeDesc;
-                                auto memberVariableName = variableName + "." + member._name;
+                                const auto& structMember = variableStructMembers->at(i);
+                                auto memberVariableName = variableName + "." + structMember.getName();
                                 auto memberVariableValue = aggregateValue->getMemberValue(i);
 
-                                populateUniformInput_ref(memberTypeDesc, memberVariableName, memberVariableValue, populateUniformInput_ref);
+                                populateUniformInput_ref(structMember.getType(), memberVariableName, memberVariableValue, populateUniformInput_ref);
                             }
                         }
                     };

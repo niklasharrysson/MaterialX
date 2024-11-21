@@ -7,106 +7,164 @@
 
 #include <MaterialXGenShader/ShaderGenerator.h>
 
+#include <mutex>
+
 MATERIALX_NAMESPACE_BEGIN
 
-namespace
-{
-
+using DataBlockPtr = std::shared_ptr<TypeDesc::DataBlock>;
 using TypeDescMap = std::unordered_map<string, TypeDesc>;
-using TypeDescNameMap = std::unordered_map<uint32_t, string>;
 
-// Internal storage of registered type descriptors
-TypeDescMap& typeMap()
+class TypeDescRegistryImpl
 {
-    static TypeDescMap map;
-    return map;
+public:
+    void registerBuiltinType(TypeDesc type)
+    {
+        // Updating the builtin type registry does not requires thread syncronization
+        // since they are created statically during application launch.
+        _builtinTypes.push_back(type);
+        _builtinTypesByName[type.getName()] = type;
+    }
+
+    void registerCustomType(const string& name, uint8_t basetype, uint8_t semantic, uint16_t size, StructMemberDescVecPtr members)
+    {
+        // Allocate a data block and use to initialize a new type description.
+        DataBlockPtr data = std::make_shared<TypeDesc::DataBlock>(name, members);
+        const TypeDesc type(name, basetype, semantic, size, data.get());
+
+        // Updating the custom type registry requires thread syncronization
+        // since these can be created dynamically during document loading.
+        std::lock_guard<std::mutex> guard(_mutex);
+
+        // TODO: How should we handle registration of a type that already exists?
+
+        _dataBlocks.push_back(data);
+        _customTypes.push_back(type);
+        _customTypesByName[name] = type;
+    }
+
+    void clear()
+    {
+        // Clear the custom types
+        std::lock_guard<std::mutex> guard(_mutex);
+        _customTypes.clear();
+        _customTypesByName.clear();
+        _dataBlocks.clear();
+    }
+
+    TypeDesc get(const string& name)
+    {
+        // First, check the built-in types
+        // No thread syncronization required
+        auto it = _builtinTypesByName.find(name);
+        if (it != _builtinTypesByName.end())
+        {
+            return it->second;
+        }
+
+        // Second, look through the custom types
+        // Since they are allowed to be dynamically loaded/unloaded
+        // we need thread syncronization here
+        std::lock_guard<std::mutex> guard(_mutex);
+        it = _customTypesByName.find(name);
+        return (it != _customTypesByName.end() ? it->second : Type::NONE);
+    }
+
+    TypeDesc getBuiltinType(const string& name)
+    {
+        auto it = _builtinTypesByName.find(name);
+        return (it != _builtinTypesByName.end() ? it->second : Type::NONE);
+    }
+
+    TypeDesc getCustomType(const string& name)
+    {
+        std::lock_guard<std::mutex> guard(_mutex);
+        auto it = _customTypesByName.find(name);
+        return (it != _customTypesByName.end() ? it->second : Type::NONE);
+    }
+
+    TypeDescVec _builtinTypes;
+    TypeDescMap _builtinTypesByName;
+
+    TypeDescVec _customTypes;
+    TypeDescMap _customTypesByName;
+
+    vector<DataBlockPtr> _dataBlocks;
+
+    std::mutex _mutex;
+};
+
+namespace 
+{
+    static TypeDescRegistryImpl s_registryImpl;
 }
 
-TypeDescNameMap& typeNameMap()
+void TypeDesc::registerBuiltinType(TypeDesc type)
 {
-    static TypeDescNameMap map;
-    return map;
+    s_registryImpl.registerBuiltinType(type);
 }
 
-using StructTypeDescStorage = vector<StructTypeDesc>;
-StructTypeDescStorage& structTypeStorage()
+void TypeDesc::registerCustomType(const string& name, uint8_t basetype, uint8_t semantic, uint16_t size, StructMemberDescVecPtr members)
 {
-    // TODO: Our use of the singleton pattern for TypeDescMap and StructTypeDestStorage
-    //       is not thread-safe, and we should consider replacing this with thread-local
-    //       data in the GenContext object.
-    static StructTypeDescStorage storage;
-    return storage;
+    s_registryImpl.registerCustomType(name, basetype, semantic, size, members);
 }
 
-} // anonymous namespace
-
-const string TypeDesc::NONE_TYPE_NAME = "none";
-
-const string& TypeDesc::getName() const
+void TypeDesc::clearCustomTypes()
 {
-    TypeDescNameMap& typenames = typeNameMap();
-    auto it = typenames.find(_id);
-    return it != typenames.end() ? it->second : NONE_TYPE_NAME;
+    s_registryImpl.clear();
 }
 
 TypeDesc TypeDesc::get(const string& name)
 {
-    TypeDescMap& types = typeMap();
-    auto it = types.find(name);
-    return it != types.end() ? it->second : Type::NONE;
+    return s_registryImpl.get(name);
 }
 
-void TypeDesc::remove(const string& name)
+TypeDesc TypeDesc::getBuiltinType(const string& name)
 {
-    TypeDescNameMap& typenames = typeNameMap();
+    return s_registryImpl.getBuiltinType(name);
+}
 
-    TypeDescMap& types = typeMap();
+const TypeDescVec& TypeDesc::getBuiltinTypes()
+{
+    return s_registryImpl._builtinTypes;
+}
 
-    auto it = types.find(name);
-    if (it == types.end())
-        return;
+TypeDesc TypeDesc::getCustomType(const string& name)
+{
+    return s_registryImpl.getCustomType(name);
+}
 
-    typenames.erase(it->second.typeId());
-    types.erase(it);
+const TypeDescVec& TypeDesc::getCustomTypes()
+{
+    return s_registryImpl._customTypes;
 }
 
 ValuePtr TypeDesc::createValueFromStrings(const string& value) const
 {
-    ValuePtr newValue = Value::createValueFromStrings(value, getName());
-    if (!isStruct())
-        return newValue;
+    auto structMembers = getStructMembers();
+    if (!isStruct() || !structMembers)
+    {
+        return Value::createValueFromStrings(value, getName());
+    }
 
     // Value::createValueFromStrings() can only create a valid Value for a struct if it is passed
     // the optional TypeDef argument, otherwise it just returns a "string" typed Value.
     // So if this is a struct type we need to create a new AggregateValue.
 
     StringVec subValues = parseStructValueString(value);
-
-    AggregateValuePtr  result = AggregateValue::createAggregateValue(getName());
-    auto structTypeDesc = StructTypeDesc::get(getStructIndex());
-    const auto& members = structTypeDesc.getMembers();
-
-    if (subValues.size() != members.size())
+    if (subValues.size() != structMembers->size())
     {
         std::stringstream ss;
-        ss << "Wrong number of initializers - expect " << members.size();
+        ss << "Wrong number of initializers - expect " << structMembers->size();
         throw ExceptionShaderGenError(ss.str());
     }
 
-    for (size_t i = 0; i < members.size(); ++i)
+    AggregateValuePtr result = AggregateValue::createAggregateValue(getName());
+    for (size_t i = 0; i < structMembers->size(); ++i)
     {
-        result->appendValue( members[i]._typeDesc.createValueFromStrings(subValues[i]));
+        result->appendValue(structMembers->at(i).getType().createValueFromStrings(subValues[i]));
     }
 
     return result;
-}
-
-TypeDescRegistry::TypeDescRegistry(TypeDesc type, const string& name)
-{
-    TypeDescMap& types = typeMap();
-    TypeDescNameMap& typenames = typeNameMap();
-    types[name] = type;
-    typenames[type.typeId()] = name;
 }
 
 namespace Type
@@ -115,100 +173,30 @@ namespace Type
 ///
 /// Register type descriptors for standard types.
 ///
-TYPEDESC_REGISTER_TYPE(NONE, "none")
-TYPEDESC_REGISTER_TYPE(BOOLEAN, "boolean")
-TYPEDESC_REGISTER_TYPE(INTEGER, "integer")
-TYPEDESC_REGISTER_TYPE(INTEGERARRAY, "integerarray")
-TYPEDESC_REGISTER_TYPE(FLOAT, "float")
-TYPEDESC_REGISTER_TYPE(FLOATARRAY, "floatarray")
-TYPEDESC_REGISTER_TYPE(VECTOR2, "vector2")
-TYPEDESC_REGISTER_TYPE(VECTOR3, "vector3")
-TYPEDESC_REGISTER_TYPE(VECTOR4, "vector4")
-TYPEDESC_REGISTER_TYPE(COLOR3, "color3")
-TYPEDESC_REGISTER_TYPE(COLOR4, "color4")
-TYPEDESC_REGISTER_TYPE(MATRIX33, "matrix33")
-TYPEDESC_REGISTER_TYPE(MATRIX44, "matrix44")
-TYPEDESC_REGISTER_TYPE(STRING, "string")
-TYPEDESC_REGISTER_TYPE(FILENAME, "filename")
-TYPEDESC_REGISTER_TYPE(BSDF, "BSDF")
-TYPEDESC_REGISTER_TYPE(EDF, "EDF")
-TYPEDESC_REGISTER_TYPE(VDF, "VDF")
-TYPEDESC_REGISTER_TYPE(SURFACESHADER, "surfaceshader")
-TYPEDESC_REGISTER_TYPE(VOLUMESHADER, "volumeshader")
-TYPEDESC_REGISTER_TYPE(DISPLACEMENTSHADER, "displacementshader")
-TYPEDESC_REGISTER_TYPE(LIGHTSHADER, "lightshader")
-TYPEDESC_REGISTER_TYPE(MATERIAL, "material")
+TYPEDESC_REGISTER_TYPE(NONE)
+TYPEDESC_REGISTER_TYPE(BOOLEAN)
+TYPEDESC_REGISTER_TYPE(INTEGER)
+TYPEDESC_REGISTER_TYPE(INTEGERARRAY)
+TYPEDESC_REGISTER_TYPE(FLOAT)
+TYPEDESC_REGISTER_TYPE(FLOATARRAY)
+TYPEDESC_REGISTER_TYPE(VECTOR2)
+TYPEDESC_REGISTER_TYPE(VECTOR3)
+TYPEDESC_REGISTER_TYPE(VECTOR4)
+TYPEDESC_REGISTER_TYPE(COLOR3)
+TYPEDESC_REGISTER_TYPE(COLOR4)
+TYPEDESC_REGISTER_TYPE(MATRIX33)
+TYPEDESC_REGISTER_TYPE(MATRIX44)
+TYPEDESC_REGISTER_TYPE(STRING)
+TYPEDESC_REGISTER_TYPE(FILENAME)
+TYPEDESC_REGISTER_TYPE(BSDF)
+TYPEDESC_REGISTER_TYPE(EDF)
+TYPEDESC_REGISTER_TYPE(VDF)
+TYPEDESC_REGISTER_TYPE(SURFACESHADER)
+TYPEDESC_REGISTER_TYPE(VOLUMESHADER)
+TYPEDESC_REGISTER_TYPE(DISPLACEMENTSHADER)
+TYPEDESC_REGISTER_TYPE(LIGHTSHADER)
+TYPEDESC_REGISTER_TYPE(MATERIAL)
 
 } // namespace Type
-
-//
-// StructTypeDesc methods
-//
-
-void StructTypeDesc::addMember(const string& name, TypeDesc type, string defaultValueStr)
-{
-    _members.emplace_back(StructTypeDesc::StructMemberTypeDesc(name, type, defaultValueStr));
-}
-
-vector<string> StructTypeDesc::getStructTypeNames()
-{
-    StructTypeDescStorage& structs = structTypeStorage();
-    vector<string> structNames;
-    for (const auto& x : structs)
-    {
-        structNames.emplace_back(x.typeDesc().getName());
-    }
-    return structNames;
-}
-
-StructTypeDesc& StructTypeDesc::get(unsigned int index)
-{
-    StructTypeDescStorage& structs = structTypeStorage();
-    return structs[index];
-}
-
-uint16_t StructTypeDesc::emplace_back(StructTypeDesc structTypeDesc)
-{
-    StructTypeDescStorage& structs = structTypeStorage();
-    if (structs.size() >= std::numeric_limits<uint16_t>::max())
-    {
-        throw ExceptionShaderGenError("Maximum number of custom struct types has been exceeded.");
-    }
-    uint16_t index = static_cast<uint16_t>(structs.size());
-    structs.emplace_back(structTypeDesc);
-    return index;
-}
-
-void StructTypeDesc::clear()
-{
-    StructTypeDescStorage& structs = structTypeStorage();
-    for (const auto& structType: structs)
-    {
-        // Need to add typeID to structTypeDesc - and use it here to reference back to typeDesc obj and remove it.
-        TypeDesc::remove(structType.typeDesc().getName());
-    }
-    structs.clear();
-}
-
-const string& StructTypeDesc::getName() const
-{
-    return _typedesc.getName();
-}
-
-const vector<StructTypeDesc::StructMemberTypeDesc>& StructTypeDesc::getMembers() const
-{
-    return _members;
-}
-
-TypeDesc createStructTypeDesc(std::string_view name)
-{
-    return {name, TypeDesc::BASETYPE_STRUCT};
-}
-
-void registerStructTypeDesc(std::string_view name)
-{
-    auto structTypeDesc = createStructTypeDesc(name);
-    TypeDescRegistry register_struct(structTypeDesc, string(name));
-}
 
 MATERIALX_NAMESPACE_END

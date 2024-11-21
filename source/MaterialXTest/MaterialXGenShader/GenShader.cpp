@@ -95,13 +95,36 @@ TEST_CASE("GenShader: TypeDesc Check", "[genshader]")
     REQUIRE(color4Type.isFloat4());
 
     // Make sure we can register a new custom type
-    const std::string fooTypeName = "foo";
-    mx::TypeDescRegistry reg(mx::TypeDesc(fooTypeName, mx::TypeDesc::BASETYPE_FLOAT, mx::TypeDesc::SEMANTIC_COLOR, 5), fooTypeName);
-    const mx::TypeDesc fooType = mx::TypeDesc::get(fooTypeName);
+    mx::TypeDesc::registerCustomType("foo", mx::TypeDesc::BASETYPE_FLOAT, mx::TypeDesc::SEMANTIC_COLOR, 5);
+    const mx::TypeDesc fooType = mx::TypeDesc::getCustomType("foo");
     REQUIRE(fooType != mx::Type::NONE);
+    REQUIRE(fooType == mx::TypeDesc::get("foo"));
 
-    // Make sure we can't request an unknown type
-    REQUIRE(mx::TypeDesc::get("bar") == mx::Type::NONE);
+    // Make sure we can register a new struct type
+    {
+        auto structMembers = std::make_shared<mx::StructMemberDescVec>();
+        structMembers->emplace_back(mx::StructMemberDesc(mx::Type::FLOAT, "one",   "1.0"));
+        structMembers->emplace_back(mx::StructMemberDesc(mx::Type::FLOAT, "two",   "2.0"));
+        structMembers->emplace_back(mx::StructMemberDesc(mx::Type::FLOAT, "three", "3.0"));
+        mx::TypeDesc::registerCustomType("bar", mx::TypeDesc::BASETYPE_STRUCT, mx::TypeDesc::SEMANTIC_NONE, 1, structMembers);
+    }
+    const mx::TypeDesc barType = mx::TypeDesc::getCustomType("bar");
+    REQUIRE(barType.isStruct());
+    REQUIRE(barType == mx::TypeDesc::get("bar"));
+
+    // Make sure we can register a new struct of a struct type
+    {
+        auto structMembers = std::make_shared<mx::StructMemberDescVec>();
+        structMembers->emplace_back(mx::StructMemberDesc(barType, "A", "{3.0,4.0,5.0}"));
+        structMembers->emplace_back(mx::StructMemberDesc(barType, "B", "{6.0,7.0,8.0}"));
+        mx::TypeDesc::registerCustomType("pair_of_bar", mx::TypeDesc::BASETYPE_STRUCT, mx::TypeDesc::SEMANTIC_NONE, 1, structMembers);
+    }
+    const mx::TypeDesc barPairType = mx::TypeDesc::getCustomType("pair_of_bar");
+    REQUIRE(barPairType.isStruct());
+    REQUIRE(barPairType == mx::TypeDesc::get("pair_of_bar"));
+
+    mx::TypeDesc::clearCustomTypes();
+    REQUIRE(mx::TypeDesc::get("pair_of_bar") == mx::Type::NONE);
 }
 
 TEST_CASE("GenShader: Shader Translation", "[translate]")
