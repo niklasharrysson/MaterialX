@@ -226,6 +226,8 @@ class MX_GENSHADER_API TypeDesc
     const DataBlock* _data;
 };
 
+/// @class StructMemberDesc
+/// Type descriptor for member of a struct type.
 class StructMemberDesc
 {
 public:
