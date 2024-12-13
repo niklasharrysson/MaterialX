@@ -18,7 +18,6 @@ MATERIALX_NAMESPACE_BEGIN
 // ShaderGraph methods
 //
 
-
 ShaderGraph::ShaderGraph(const ShaderGraph* parent, const string& name, ConstDocumentPtr document, const StringSet& reservedWords) :
     ShaderNode(parent, name),
     _document(document)

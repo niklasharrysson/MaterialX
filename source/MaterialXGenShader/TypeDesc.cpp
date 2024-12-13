@@ -44,9 +44,12 @@ const string TypeDesc::NONE_TYPE_NAME = "none";
 
 const string& TypeDesc::getName() const
 {
+    return _data->getName();
+/*
     TypeDescNameMap& typenames = typeNameMap();
     auto it = typenames.find(_id);
     return it != typenames.end() ? it->second : NONE_TYPE_NAME;
+*/
 }
 
 TypeDesc TypeDesc::get(const string& name)

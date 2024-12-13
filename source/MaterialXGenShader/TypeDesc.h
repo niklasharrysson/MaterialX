@@ -16,6 +16,13 @@
 
 MATERIALX_NAMESPACE_BEGIN
 
+class TypeDesc;
+using TypeDescVec = vector<TypeDesc>;
+
+class StructMemberDesc;
+using StructMemberDescVec = vector<StructMemberDesc>;
+using StructMemberDescVecPtr = shared_ptr<const StructMemberDescVec>;
+
 /// @class TypeDesc
 /// A type descriptor for MaterialX data types.
 ///
@@ -60,23 +67,39 @@ class MX_GENSHADER_API TypeDesc
         SEMANTIC_LAST
     };
 
+    /// Data block holding large data needed by the type description.
+    class DataBlock
+    {
+    public:
+        DataBlock(const string& name, StructMemberDescVecPtr mem = nullptr) noexcept : _name(name), _members(mem) {}
+
+        const string& getName() const { return _name; }
+        const StructMemberDescVecPtr getStructMembers() const { return _members; }
+
+    private:
+        const string _name;
+        const StructMemberDescVecPtr _members;
+    };
+
     /// Empty constructor.
     constexpr TypeDesc() noexcept :
         _id(0),
         _basetype(BASETYPE_NONE),
         _semantic(SEMANTIC_NONE),
         _size(0),
-        _structIndex(0)
+        _structIndex(0),
+        _data(nullptr)
     {
     }
 
     /// Constructor.
-    constexpr TypeDesc(std::string_view name, uint8_t basetype, uint8_t semantic = SEMANTIC_NONE, uint16_t size = 1, uint16_t structIndex = 0) noexcept :
+    constexpr TypeDesc(std::string_view name, uint8_t basetype, uint8_t semantic = SEMANTIC_NONE, uint16_t size = 1, uint16_t structIndex = 0, const DataBlock* data = nullptr) noexcept :
         _id(constexpr_hash(name)), // Note: We only store the hash to keep the class size minimal.
         _basetype(basetype),
         _semantic(semantic),
         _size(size),
-        _structIndex(structIndex)
+        _structIndex(structIndex),
+        _data(data)
     {
     }
 
@@ -178,6 +201,7 @@ class MX_GENSHADER_API TypeDesc
     uint8_t _semantic;
     uint16_t _size;
     uint16_t _structIndex;
+    const DataBlock* _data;
 };
 
 /// @class TypeDescRegistry
@@ -190,7 +214,8 @@ class MX_GENSHADER_API TypeDescRegistry
 
 /// Macro to define global type descriptions for commonly used types.
 #define TYPEDESC_DEFINE_TYPE(T, name, basetype, semantic, size) \
-    static constexpr TypeDesc T(name, basetype, semantic, size);
+    inline const TypeDesc::DataBlock* T##_data() { static const TypeDesc::DataBlock _data(name); return &_data; } \
+    static TypeDesc T(name, basetype, semantic, size, 0, T##_data());
 
 /// Macro to register a previously defined type in the type registry.
 /// Registration must be done in order for the type to be searchable by name.
