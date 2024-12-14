@@ -85,6 +85,16 @@ namespace
     static TypeDescRegistryImpl s_registryImpl;
 }
 
+const string& TypeDesc::getName() const 
+{ 
+    return _data ? _data->getName() : Type::NONE_data()->getName();
+}
+
+const StructMemberDescVecPtr TypeDesc::getStructMembers() const 
+{ 
+    return _data ? _data->getStructMembers() : StructMemberDescVecPtr();
+}
+
 bool TypeDesc::isBuiltin() const
 {
     auto it = s_registryImpl._builtinTypesByName.find(getName());

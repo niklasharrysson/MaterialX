@@ -110,7 +110,7 @@ class MX_GENSHADER_API TypeDesc
     uint32_t typeId() const { return _id; }
 
     /// Return the name of the type.
-    const string& getName() const { return _data->getName(); }
+    const string& getName() const;
 
     /// Return the basetype for the type.
     unsigned char getBaseType() const { return _basetype; }
@@ -153,7 +153,7 @@ class MX_GENSHADER_API TypeDesc
 
     /// Return a pointer to the struct member description.
     /// Will return nullptr if this is not a struct type.
-    const StructMemberDescVecPtr getStructMembers() const { return _data->getStructMembers(); }
+    const StructMemberDescVecPtr getStructMembers() const;
 
     /// Equality operator
     bool operator==(TypeDesc rhs) const
