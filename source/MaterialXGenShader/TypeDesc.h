@@ -250,8 +250,7 @@ private:
 
 /// Macro to define global type descriptions for commonly used types.
 #define TYPEDESC_DEFINE_TYPE(T, name, basetype, semantic, size) \
-       inline const TypeDesc::DataBlock* T##_data() { static const TypeDesc::DataBlock _data(name); return &_data; } \
-       static TypeDesc T(name, basetype, semantic, size, T##_data());
+       static const TypeDesc T(name, basetype, semantic, size, new TypeDesc::DataBlock(name));
 
 /// Macro to register a previously defined type in the type registry.
 /// Registration must be done in order for the type to be searchable by name.

@@ -83,11 +83,12 @@ public:
 namespace 
 {
     static TypeDescRegistryImpl s_registryImpl;
+    const string NONE_NAME = "none";
 }
 
 const string& TypeDesc::getName() const 
 { 
-    return _data ? _data->getName() : Type::NONE_data()->getName();
+    return _data ? _data->getName() : NONE_NAME;
 }
 
 const StructMemberDescVecPtr TypeDesc::getStructMembers() const 
